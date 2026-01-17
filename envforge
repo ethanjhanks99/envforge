@@ -1,0 +1,148 @@
+#!/bin/bash
+
+# ============================================================================
+# envforge - CLI Entry Point
+# ============================================================================
+
+set -e  # Exit on error
+
+# Source configuration and utilities
+ENVFORGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$ENVFORGE_ROOT/lib/constants.sh"      # VERSION, PATHS, etc.
+source "$ENVFORGE_ROOT/lib/utils.sh"          # General utilities
+source "$ENVFORGE_ROOT/lib/context.sh"        # Context detection
+source "$ENVFORGE_ROOT/lib/validation.sh"     # Input validation
+
+# ============================================================================
+# FUNCTIONS
+# ============================================================================
+
+# Display usage information
+usage() {
+  cat <<EOF
+Usage: envforge <command> [subcommand] [options]
+
+Global Options:
+  --help, -h          Show this help message
+  --version, -v       Show version information
+  --debug             Enable debug output
+
+Commands:
+  workspace           Manage workspaces
+    create <name>     Create new workspace
+    
+  project             Manage projects
+    create <name>     Create new project
+    
+  tool                Manage tools
+    install <tool>    Install a tool
+    remove <tool>     Remove a tool
+    list              List tools
+    
+  status              Show current context
+  init                Initialize current directory
+  
+Run 'envforge <command> --help' for command-specific help.
+EOF
+}
+
+# Display version
+show_version() {
+  echo "envforge $ENVFORGE_VERSION"
+  echo "Bash-based reproducible development environments"
+}
+
+# Route to appropriate command handler
+route_command() {
+  local command="$1"
+  shift
+  
+  case "$command" in
+    workspace)
+      source "$ENVFORGE_ROOT/lib/commands/workspace.sh"
+      workspace_command "$@"
+      ;;
+    project)
+      source "$ENVFORGE_ROOT/lib/commands/project.sh"
+      project_command "$@"
+      ;;
+    tool)
+      source "$ENVFORGE_ROOT/lib/commands/tool.sh"
+      tool_command "$@"
+      ;;
+    status)
+      source "$ENVFORGE_ROOT/lib/commands/status.sh"
+      status_command "$@"
+      ;;
+    init)
+      source "$ENVFORGE_ROOT/lib/commands/init.sh"
+      init_command "$@"
+      ;;
+    -h|--help|help)
+      usage
+      exit 0
+      ;;
+    -v|--version|version)
+      show_version
+      exit 0
+      ;;
+    "")
+      usage
+      exit 1
+      ;;
+    *)
+      error "Unknown command: $command"
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+main() {
+  # Parse global options
+  local debug=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --debug)
+        debug=true
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -v|--version)
+        show_version
+        exit 0
+        ;;
+      *)
+        # First non-option argument is the command
+        break
+        ;;
+    esac
+  done
+  
+  # Enable debug if requested
+  if [[ "$debug" == true ]]; then
+    set -x
+    export ENVFORGE_DEBUG=true
+  fi
+  
+  # Get current context (will be used by commands)
+  export ENVFORGE_CONTEXT="$(detect_context)"
+  
+  # Route to command handler
+  if [[ $# -eq 0 ]]; then
+    usage
+    exit 1
+  fi
+  
+  route_command "$@"
+}
+
+# Run main function with all arguments
+main "$@"
